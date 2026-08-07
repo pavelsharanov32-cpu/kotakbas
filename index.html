@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Zmenin GLOBAL</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, system-ui, sans-serif;
+            background: #06060c;
+            color: #fff;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            user-select: none;
+            position: relative;
+        }
+
+        .bg-glow-1, .bg-glow-2 {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(90px);
+            opacity: 0.35;
+            z-index: 0;
+            pointer-events: none;
+            animation: floatGlow 10s ease-in-out infinite alternate;
+        }
+        .bg-glow-1 {
+            width: 300px;
+            height: 300px;
+            background: #a855f7;
+            top: -50px;
+            left: -50px;
+        }
+        .bg-glow-2 {
+            width: 350px;
+            height: 350px;
+            background: #4ea8ff;
+            bottom: -50px;
+            right: -50px;
+            animation-delay: -5s;
+        }
+        @keyframes floatGlow {
+            0% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(30px, 40px) scale(1.1); }
+            100% { transform: translate(-20px, 20px) scale(0.9); }
+        }
+
+        #particlesCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .header {
+            position: relative;
+            z-index: 2;
+            padding: 10px 14px 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(10, 10, 18, 0.65);
+            backdrop-filter: blur(15px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            flex-shrink: 0;
+        }
+        .header .logo {
+            font-size: 17px;
+            font-weight: 900;
+            background: linear-gradient(135deg, #4ea8ff, #a855f7, #ec4899);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .header .balance {
+            background: rgba(251, 191, 36, 0.12);
+            padding: 4px 12px;
+            border-radius: 30px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #fbbf24;
+            border: 1px solid rgba(251, 191, 36, 0.3);
+            box-shadow: 0 0 15px rgba(251, 191, 36, 0.15);
+        }
+
+        .page {
+            position: relative;
+            z-index: 2;
+            flex: 1;
+            display: none;
+            padding: 8px 12px 4px;
+            overflow-y: auto;
+            flex-direction: column;
+            animation: fadeIn 0.3s ease;
+        }
+        .page.active {
+            display: flex;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .greeting {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 2px;
+        }
+        .greeting span {
+            background: linear-gradient(135deg, #4ea8ff, #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .sub-greeting {
+            color: #888;
+            font-size: 12px;
+            margin-bottom: 10px;
+        }
+
+        .balance-box {
+            background: rgba(20, 20, 35, 0.6);
+            backdrop-filter: blur(15px);
+            border-radius: 14px;
+            padding: 14px;
+            margin-bottom: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+        .balance-box .label {
+            font-size: 10px;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+        .balance-box .amount {
+            font-size: 26px;
+            font-weight: 800;
+            color: #fbbf24;
+            text-shadow: 0 0 12px rgba(251, 191, 36, 0.3);
+        }
+
+        .wins-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #aaa;
+            margin-bottom: 6px;
+        }
+
+        .ticker-wrapper {
+            width: 100%;
+            overflow-x: auto;
+            overflow-y: hidden;
+            position: relative;
+            background: rgba(15, 15, 28, 0.5);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 8px;
+            margin-bottom: 10px;
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
+        }
+        .ticker-wrapper::-webkit-scrollbar {
+            height: 4px;
+        }
+        .ticker-wrapper::-webkit-scrollbar-thumb {
+            background: rgba(78, 168, 255, 0.3);
+            border-radius: 10px;
+        }
+        .ticker-track {
+            display: flex;
+            gap: 10px;
+            width: max-content;
+        }
+
+        .ticker-item {
+            flex: 0 0 auto;
+            width: 175px;
+            background: rgba(25, 25, 45, 0.7);
+            border-radius: 10px;
+            padding: 8px 10px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 11px;
+            animation: itemPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes itemPop {
+            from { opacity: 0; transform: scale(0.8) translateX(-20px); }
+            to { opacity: 1; transform: scale(1) translateX(0); }
+        }
+
+        .ticker-item .row-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .ticker-item .user-tag {
+            color: #4ea8ff;
+            font-weight: 700;
+            font-size: 11px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100px;
+        }
+        .ticker-item .game-tag {
+            font-size: 9px;
+            background: rgba(168, 85, 247, 0.2);
+            color: #c084fc;
+            padding: 2px 6px;
+            border-radius: 6px;
+            border: 1px solid rgba(168, 85, 247, 0.3);
+        }
+        .ticker-item .row-mid {
+            display: flex;
+            justify-content: space-between;
+            color: #888;
+            font-size: 10px;
+        }
+        .ticker-item .row-bottom {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 700;
+        }
+        .ticker-item .win-val { color: #4ade80; }
+        .ticker-item .lose-val { color: #f87171; }
+
+        .game-wrapper {
+            background: rgba(20, 20, 35, 0.5);
+            backdrop-filter: blur(15px);
+            border-radius: 16px;
+            padding: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            margin-bottom: 4px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+        }
+
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .game-header .title { font-size: 18px; font-weight: 700; }
+        .game-header .title span { color: #fbbf24; }
+        .game-header .win-display { color: #4ade80; font-weight: 700; font-size: 14px; }
+
+        .mine-field {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 6px;
+            max-width: 300px;
+            margin: 0 auto 10px;
+            width: 100%;
+            perspective: 800px;
+        }
+
+        .mine-cell {
+            aspect-ratio: 1;
+            border-radius: 10px;
+            cursor: pointer;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .mine-field.disabled .mine-cell {
+            cursor: not-allowed;
+        }
+
+        .mine-cell .cell-front,
+        .mine-cell .cell-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backface-visibility: hidden;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+        }
+
+        .mine-cell .cell-front {
+            background: linear-gradient(145deg, #18182c, #22223d);
+            border: 1.5px solid rgba(255, 255, 255, 0.1);
+            font-size: 16px;
+            color: #4ea8ff;
+            transition: border-color 0.3s, background 0.3s;
+        }
+
+        .mine-field:not(.disabled) .mine-cell:not(.flipped):hover .cell-front {
+            border-color: #4ea8ff;
+            background: linear-gradient(145deg, #22223d, #2e2e50);
+        }
+
+        .mine-cell .cell-back {
+            transform: rotateY(180deg);
+            font-size: 22px;
+            background: #121220;
+            border: 1.5px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .mine-cell.flipped {
+            transform: rotateY(180deg);
+        }
+
+        .mine-cell.star .cell-back {
+            background: linear-gradient(145deg, #09382b, #125e48) !important;
+            border-color: #00ffc8 !important;
+            animation: crystalPop 0.5s ease-out forwards;
+        }
+
+        @keyframes crystalPop {
+            0% { transform: rotateY(180deg) scale(0.8); }
+            50% { transform: rotateY(180deg) scale(1.15); box-shadow: 0 0 25px rgba(0, 255, 200, 0.8); }
+            100% { transform: rotateY(180deg) scale(1); box-shadow: 0 0 10px rgba(0, 255, 200, 0.4); }
+        }
+
+        .mine-cell.bomb .cell-back {
+            background: linear-gradient(145deg, #5c1414, #8b0000) !important;
+            border-color: #ff2244 !important;
+            animation: explodeAnim 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) forwards;
+        }
+
+        @keyframes explodeAnim {
+            0% { transform: rotateY(180deg) scale(1); }
+            20% { transform: rotateY(180deg) scale(1.25) translate(-3px, 3px); background: #ff2244; box-shadow: 0 0 30px #ff2244; }
+            40% { transform: rotateY(180deg) scale(1.15) translate(3px, -3px); }
+            60% { transform: rotateY(180deg) scale(1.2) translate(-3px, -3px); }
+            80% { transform: rotateY(180deg) scale(1.05) translate(3px, 3px); }
+            100% { transform: rotateY(180deg) scale(1) translate(0, 0); box-shadow: 0 0 15px rgba(255, 34, 68, 0.6); }
+        }
+
+        .mine-info {
+            display: flex;
+            justify-content: space-between;
+            max-width: 300px;
+            margin: 0 auto 8px;
+            padding: 8px 12px;
+            background: rgba(15, 15, 28, 0.6);
+            backdrop-filter: blur(10px);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 12px;
+            color: #aaa;
+        }
+        .mine-info span { color: #fbbf24; font-weight: 700; }
+
+        .settings-group { margin-bottom: 10px; }
+        .settings-label {
+            font-size: 10px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        .bet-display-center {
+            text-align: center;
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 6px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        .bet-display-center span {
+            color: #fbbf24;
+            font-weight: 800;
+            font-size: 14px;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 4px 0;
+        }
+        .slider-container input[type="range"] {
+            flex: 1;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 4px;
+            border-radius: 4px;
+            background: linear-gradient(90deg, #1a1a2e, #4ea8ff);
+            outline: none;
+        }
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #4ea8ff, #a855f7);
+            cursor: pointer;
+            border: 2px solid #fff;
+        }
+        .slider-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: #4ea8ff;
+            min-width: 30px;
+            text-align: center;
+        }
+
+        .settings-buttons {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+        .settings-buttons button {
+            flex: 1;
+            min-width: 36px;
+            padding: 6px 4px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            background: rgba(25, 25, 45, 0.5);
+            color: #888;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        .settings-buttons button.active {
+            border-color: #4ea8ff;
+            color: #fff;
+            background: rgba(78, 168, 255, 0.2);
+            box-shadow: 0 0 15px rgba(78, 168, 255, 0.15);
+        }
+        .settings-buttons button.min { border-color: #ff6b6b; color: #ff6b6b; }
+        .settings-buttons button.min.active { background: rgba(255, 107, 107, 0.2); }
+        .settings-buttons button.max { border-color: #4ade80; color: #4ade80; }
+        .settings-buttons button.max.active { background: rgba(74, 222, 128, 0.2); }
+        
+        .settings-buttons button:disabled, 
+        input[type="range"]:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .mine-actions {
+            display: flex;
+            justify-content: center;
+            max-width: 300px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        .mine-actions button {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            color: #fff;
+            letter-spacing: 0.5px;
+        }
+        .mine-actions button:active:not(:disabled) { transform: scale(0.95); }
+        .mine-actions button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        .btn-main { background: linear-gradient(135deg, #4ea8ff, #a855f7); box-shadow: 0 4px 20px rgba(78,168,255,0.4); }
+        .btn-main.take { background: linear-gradient(135deg, #10b981, #06b6d4); color: #fff; box-shadow: 0 4px 20px rgba(16,185,129,0.4); }
+        .btn-main.gameover { background: linear-gradient(135deg, #ef4444, #a855f7); color: #fff; box-shadow: 0 4px 20px rgba(239,68,68,0.4); }
+
+        .multiplier-display {
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+        .multiplier-display span { color: #fbbf24; font-weight: 700; }
+
+        .menu {
+            position: relative;
+            z-index: 2;
+            display: flex;
+            background: rgba(10, 10, 18, 0.7);
+            backdrop-filter: blur(15px);
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 6px 0 16px;
+            flex-shrink: 0;
+        }
+        .menu button {
+            flex: 1;
+            background: none;
+            border: none;
+            color: #666;
+            font-size: 10px;
+            padding: 4px 0;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: 0.2s;
+            font-weight: 500;
+        }
+        .menu button .icon { font-size: 24px; }
+        .menu button.active { color: #4ea8ff; }
+
+        .toast-container {
+            position: fixed;
+            top: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+            width: 90%;
+            max-width: 400px;
+            pointer-events: none;
+        }
+        .toast {
+            background: rgba(20, 20, 35, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 14px 20px;
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: center;
+            animation: toastSlide 0.4s ease, toastHide 0.4s ease 2.6s forwards;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+        .toast.error { border-color: #ff2244; color: #ff2244; }
+        .toast.success { border-color: #4ade80; color: #4ade80; }
+        .toast.warning { border-color: #fbbf24; color: #fbbf24; }
+        @keyframes toastSlide {
+            from { opacity: 0; transform: translateY(-20px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes toastHide {
+            from { opacity: 1; transform: translateY(0) scale(1); }
+            to { opacity: 0; transform: translateY(-20px) scale(0.95); }
+        }
+
+        ::-webkit-scrollbar { width: 0; background: transparent; }
+    </style>
+</head>
+<body>
+
+    <div class="bg-glow-1"></div>
+    <div class="bg-glow-2"></div>
+    <canvas id="particlesCanvas"></canvas>
+    
+    <div class="toast-container" id="toastContainer"></div>
+
+    <div class="header">
+        <div class="logo">⚡ Zmenin GLOBAL</div>
+        <div class="balance"><span>💰</span> <span id="headerBalance">1000.00</span></div>
+    </div>
+
+    <!-- ГЛАВНАЯ -->
+    <div id="page-home" class="page active">
+        <div class="greeting">Привет, <span id="username">Игрок</span>!</div>
+        <div class="sub-greeting">Добро пожаловать в Zmenin GLOBAL</div>
+        
+        <div class="balance-box">
+            <div class="label">💰 ВАШ БАЛАНС</div>
+            <div class="amount"><span id="userBalance">1000.00</span> ZM</div>
+        </div>
+
+        <div class="wins-title">🔥 История игр (Листайте ➔)</div>
+        <div class="ticker-wrapper" id="tickerWrapper">
+            <div class="ticker-track" id="tickerTrack"></div>
+        </div>
+    </div>
+
+    <!-- ИГРЫ -->
+    <div id="page-games" class="page">
+        <div style="font-size: 24px; font-weight: 700; margin-bottom: 4px;">🎮 Все игры</div>
+        <div style="color: #888; font-size: 14px; margin-bottom: 16px;">Выбери игру и выигрывай ZM</div>
+        <div class="game-card" onclick="switchPage('page-mines')" style="background: rgba(20,20,35,0.6); border-radius:16px; padding:16px; border:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center;">
+            <div>
+                <div style="font-size:16px; font-weight:700;">💣 Мины</div>
+                <div style="font-size:12px; color:#888;">Популярная игра с высокими множителями</div>
+            </div>
+            <button style="background:linear-gradient(135deg, #4ea8ff, #a855f7); padding:8px 20px; border-radius:30px; font-size:13px; font-weight:600; color:#fff; border:none;">Играть</button>
+        </div>
+    </div>
+
+    <!-- МИНЫ -->
+    <div id="page-mines" class="page">
+        <div class="game-wrapper">
+            <div class="game-header">
+                <div class="title">💣 <span>Мины</span></div>
+                <div class="win-display" id="minesWinDisplay">0.00 ZM</div>
+            </div>
+
+            <div class="mine-field disabled" id="mineField"></div>
+
+            <div class="mine-info">
+                <div>💰 Выигрыш: <span id="currentWin">0.00</span> ZM</div>
+                <div>💣 Осталось: <span id="bombsLeft">3</span></div>
+            </div>
+
+            <div class="settings-group">
+                <span class="settings-label">💣 Количество мин</span>
+                <div class="slider-container">
+                    <span style="color:#888; font-size:12px;">3</span>
+                    <input type="range" id="bombSlider" min="3" max="24" value="3" step="1">
+                    <span style="color:#888; font-size:12px;">24</span>
+                    <span class="slider-value" id="bombSliderValue">3</span>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <div class="bet-display-center">
+                    Сумма ставки: <span id="selectedBetVal">100</span> ZM
+                </div>
+                <div class="settings-buttons" id="betButtons">
+                    <button class="min" data-value="low">LOW</button>
+                    <button class="active" data-value="100">100</button>
+                    <button data-value="300">300</button>
+                    <button data-value="500">500</button>
+                    <button data-value="1000">1000</button>
+                    <button data-value="5000">5000</button>
+                    <button class="max" data-value="max">MAX</button>
+                </div>
+            </div>
+
+            <div class="mine-actions">
+                <button class="btn-main" id="mainActionBtn">💣 Начать игру</button>
+            </div>
+
+            <div class="multiplier-display">
+                Множитель: <span id="multiplierDisplay">1.00x</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ПРОФИЛЬ -->
+    <div id="page-profile" class="page">
+        <div style="background: rgba(20, 20, 35, 0.6); border-radius: 16px; padding: 24px; text-align: center; border: 1px solid rgba(255,255,255,0.08);">
+            <div style="font-size: 64px;">👤</div>
+            <div style="font-size: 22px; font-weight: 700;" id="profileName">Игрок</div>
+            <div style="font-size: 28px; font-weight: 800; color: #fbbf24; margin: 8px 0;"><span id="profileBalance">1000.00</span> ZM</div>
+            <div style="font-size: 12px; color: #666;">ID: <span id="profileId">0</span></div>
+        </div>
+    </div>
+
+    <!-- МЕНЮ -->
+    <div class="menu">
+        <button class="active" data-page="page-home"><span class="icon">🏠</span><span>ГЛАВНАЯ</span></button>
+        <button data-page="page-games"><span class="icon">🎮</span><span>ИГРЫ</span></button>
+        <button data-page="page-mines"><span class="icon">💣</span><span>МИНЫ</span></button>
+        <button data-page="page-profile"><span class="icon">👤</span><span>ПРОФИЛЬ</span></button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('particlesCanvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        class Particle {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.size = Math.random() * 2 + 0.5;
+                this.speedX = (Math.random() - 0.5) * 0.2;
+                this.speedY = (Math.random() - 0.5) * 0.2;
+                this.opacity = Math.random() * 0.4 + 0.1;
+            }
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                if (this.x < 0 || this.x > canvas.width) this.speedX *= -1;
+                if (this.y < 0 || this.y > canvas.height) this.speedY *= -1;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(78, 168, 255, ${this.opacity})`;
+                ctx.fill();
+            }
+        }
+        for (let i = 0; i < 40; i++) particles.push(new Particle());
+
+        function animateParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(p => { p.update(); p.draw(); });
+            requestAnimationFrame(animateParticles);
+        }
+        animateParticles();
+
+        function showToast(message, type = 'warning') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => { if (toast.parentNode) toast.remove(); }, 3000);
+        }
+
+        const tg = window.Telegram?.WebApp;
+        let userData = { id: 0, name: 'Игрок', username: '' };
+        
+        if (tg) {
+            tg.ready();
+            tg.expand();
+            if (tg.initDataUnsafe?.user) {
+                userData.id = tg.initDataUnsafe.user.id;
+                userData.name = tg.initDataUnsafe.user.first_name || 'Игрок';
+                userData.username = tg.initDataUnsafe.user.username || '';
+            }
+        }
+
+        function getFormattedUserDisplay(userObj) {
+            if (userObj.username) {
+                return `@${userObj.username}`;
+            }
+            const name = userObj.name || 'Игрок';
+            if (name.length <= 3) return name + '***';
+            return name.substring(0, 3) + '***';
+        }
+
+        let balance = 1000;
+        let isGameActive = false, isProcessing = false;
+        let recentGames = [];
+
+        function renderTicker() {
+            const track = document.getElementById('tickerTrack');
+            
+            if (recentGames.length === 0) {
+                track.innerHTML = `<div style="color: #666; font-size: 12px; padding: 10px;">Сыграйте первую игру, чтобы увидеть её здесь!</div>`;
+                return;
+            }
+
+            track.innerHTML = recentGames.map(item => `
+                <div class="ticker-item">
+                    <div class="row-top">
+                        <span class="user-tag" title="${item.userDisplay}">${item.userDisplay}</span>
+                        <span class="game-tag">${item.game}</span>
+                    </div>
+                    <div class="row-mid">
+                        <span>Ставка: ${item.bet} ZM</span>
+                        <span>${item.startBal} ➔ ${item.endBal} ZM</span>
+                    </div>
+                    <div class="row-bottom">
+                        <span style="color:#aaa;">Результат:</span>
+                        <span class="${item.isWin ? 'win-val' : 'lose-val'}">
+                            ${item.isWin ? '+' + (item.endBal - item.startBal).toFixed(2) : '-' + item.bet} ZM
+                        </span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function addGameToTicker(gameData) {
+            recentGames.unshift(gameData);
+            renderTicker();
+            document.getElementById('tickerWrapper').scrollTo({ left: 0, behavior: 'smooth' });
+        }
+
+        function updateUI() {
+            document.getElementById('username').textContent = userData.name;
+            document.getElementById('profileName').textContent = userData.name;
+            document.getElementById('profileId').textContent = userData.id;
+            document.getElementById('userBalance').textContent = balance.toFixed(2);
+            document.getElementById('headerBalance').textContent = balance.toFixed(2);
+            document.getElementById('profileBalance').textContent = balance.toFixed(2);
+        }
+
+        function switchPage(id) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            document.querySelectorAll('.menu button').forEach(b => {
+                b.classList.toggle('active', b.dataset.page === id);
+            });
+        }
+        document.querySelectorAll('.menu button').forEach(btn => {
+            btn.addEventListener('click', () => switchPage(btn.dataset.page));
+        });
+
+        function calculateRealMultiplier(openedCount, minesCount) {
+            if (openedCount === 0) return 1.0;
+            let prob = 1.0;
+            for (let i = 0; i < openedCount; i++) {
+                prob *= (25 - minesCount - i) / (25 - i);
+            }
+            const houseEdge = 0.03;
+            return Math.max(1.01, parseFloat(((1 / prob) * (1 - houseEdge)).toFixed(2)));
+        }
+
+        let mines = [], revealed = [], gameOver = false, currentWin = 0;
+        let bombCount = 3, betAmount = 100, multiplier = 1.0;
+        let roundStartBalance = 1000;
+
+        function toggleControls(disabled) {
+            document.querySelectorAll('#betButtons button').forEach(b => b.disabled = disabled);
+            document.getElementById('bombSlider').disabled = disabled;
+        }
+
+        function getCalculatedBet(val) {
+            if (val === 'low') return 50;
+            if (val === 'max') return balance;
+            return parseFloat(val) || 100;
+        }
+
+        function generateMines(count) {
+            let fieldArr = Array(25).fill(false);
+            for (let i = 0; i < count; i++) {
+                fieldArr[i] = true;
+            }
+            for (let i = fieldArr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [fieldArr[i], fieldArr[j]] = [fieldArr[j], fieldArr[i]];
+            }
+            return fieldArr;
+        }
+
+        function initMines() {
+            const field = document.getElementById('mineField');
+            field.innerHTML = '';
+            field.classList.add('disabled');
+            revealed = Array(25).fill(false);
+            gameOver = false;
+            currentWin = 0;
+            multiplier = 1.0;
+            isGameActive = false;
+            isProcessing = false;
+
+            toggleControls(false);
+
+            bombCount = parseInt(document.getElementById('bombSlider').value) || 3;
+            document.getElementById('bombSliderValue').textContent = bombCount;
+
+            mines = generateMines(bombCount);
+
+            const activeBet = document.querySelector('#betButtons .active');
+            if (activeBet) {
+                betAmount = getCalculatedBet(activeBet.dataset.value);
+            }
+
+            document.getElementById('selectedBetVal').textContent = betAmount.toFixed(2);
+            document.getElementById('currentWin').textContent = '0.00';
+            document.getElementById('bombsLeft').textContent = bombCount;
+            document.getElementById('multiplierDisplay').textContent = '1.00x';
+            document.getElementById('minesWinDisplay').textContent = '0.00 ZM';
+
+            const btn = document.getElementById('mainActionBtn');
+            btn.className = 'btn-main';
+            
+            if (balance < betAmount) {
+                btn.textContent = '🚫 Мало ZM';
+                btn.disabled = true;
+            } else {
+                btn.textContent = '💣 Начать игру';
+                btn.disabled = false;
+            }
+
+            for (let i = 0; i < 25; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'mine-cell';
+                cell.dataset.index = i;
+                cell.innerHTML = `
+                    <div class="cell-front">❓</div>
+                    <div class="cell-back"></div>
+                `;
+                cell.addEventListener('click', () => openCell(i));
+                field.appendChild(cell);
+            }
+            updateUI();
+        }
+
+        function openCell(index) {
+            if (!isGameActive || gameOver || isProcessing) {
+                if (!isGameActive && !gameOver) {
+                    showToast('👉 Нажмите "💣 Начать игру", чтобы начать раунд!', 'warning');
+                }
+                return;
+            }
+
+            if (revealed[index]) return;
+            const cells = document.querySelectorAll('.mine-cell');
+
+            isProcessing = true;
+            revealed[index] = true;
+            const cell = cells[index];
+            const cellBack = cell.querySelector('.cell-back');
+
+            // ПОПАДАНИЕ НА МИНУ
+            if (mines[index]) {
+                cellBack.textContent = '💣';
+                cell.classList.add('flipped', 'bomb');
+                gameOver = true;
+                isGameActive = false;
+                document.getElementById('mineField').classList.add('disabled');
+                document.getElementById('bombsLeft').textContent = '💥 ВЗРЫВ!';
+                
+                const btn = document.getElementById('mainActionBtn');
+                btn.textContent = '💥 Заново!';
+                btn.className = 'btn-main gameover';
+                btn.disabled = false;
+
+                addGameToTicker({
+                    userDisplay: getFormattedUserDisplay(userData),
+                    game: 'Мины',
+                    bet: betAmount,
+                    startBal: roundStartBalance.toFixed(0),
+                    endBal: balance.toFixed(0),
+                    isWin: false
+                });
+
+                // Раскрываем все остальные мины
+                cells.forEach((c, i) => {
+                    if (mines[i] && i !== index) {
+                        c.querySelector('.cell-back').textContent = '💣';
+                        c.classList.add('flipped', 'bomb');
+                    }
+                });
+
+                isProcessing = false;
+                updateUI();
+                return;
+            }
+
+            // ПОПАДАНИЕ НА КРИСТАЛЛ
+            cellBack.textContent = '💎';
+            cell.classList.add('flipped', 'star');
+
+            const revealedCount = revealed.filter(r => r === true).length;
+            multiplier = calculateRealMultiplier(revealedCount, bombCount);
+            currentWin = parseFloat((betAmount * multiplier).toFixed(2));
+
+            document.getElementById('currentWin').textContent = currentWin.toFixed(2);
+            document.getElementById('multiplierDisplay').textContent = multiplier.toFixed(2) + 'x';
+            document.getElementById('minesWinDisplay').textContent = currentWin.toFixed(2) + ' ZM';
+
+            const btn = document.getElementById('mainActionBtn');
+            btn.textContent = `💸 Забрать ${currentWin.toFixed(2)} ZM`;
+            btn.className = 'btn-main take';
+            btn.disabled = false;
+
+            let allRevealed = true;
+            for (let i = 0; i < 25; i++) {
+                if (!mines[i] && !revealed[i]) { allRevealed = false; break; }
+            }
+
+            if (allRevealed) {
+                gameOver = true;
+                isGameActive = false;
+                document.getElementById('mineField').classList.add('disabled');
+                document.getElementById('bombsLeft').textContent = '🏆 ПОБЕДА!';
+            } else {
+                document.getElementById('bombsLeft').textContent = bombCount;
+            }
+            
+            isProcessing = false;
+            updateUI();
+        }
+
+        document.getElementById('bombSlider').addEventListener('input', function() {
+            document.getElementById('bombSliderValue').textContent = this.value;
+            if (!isGameActive || gameOver) initMines();
+        });
+
+        const betButtons = document.querySelectorAll('#betButtons button');
+        betButtons.forEach(btn => {
+            btn.addEventListener('click', function() {
+                if (isGameActive) return;
+
+                betButtons.forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+
+                const calculated = getCalculatedBet(this.dataset.value);
+                betAmount = Math.floor(calculated * 100) / 100;
+
+                document.getElementById('selectedBetVal').textContent = betAmount.toFixed(2);
+
+                const actionBtn = document.getElementById('mainActionBtn');
+                
+                if (betAmount > balance) {
+                    actionBtn.textContent = '🚫 Мало ZM';
+                    actionBtn.disabled = true;
+                    showToast(`⚠️ Недостаточно баланса для ставки ${betAmount} ZM!`, 'warning');
+                } else {
+                    actionBtn.textContent = '💣 Начать игру';
+                    actionBtn.disabled = false;
+                }
+
+                if (!isGameActive || gameOver) {
+                    initMines();
+                }
+            });
+        });
+
+        document.getElementById('mainActionBtn').addEventListener('click', function() {
+            if (isProcessing) return;
+
+            if (this.textContent.includes('Заново')) {
+                initMines();
+                showToast('🔄 Поле обновлено! Нажми "💣 Начать игру"', 'success');
+                return;
+            }
+
+            if (this.textContent.includes('Начать игру')) {
+                if (balance < betAmount) {
+                    showToast('❌ Недостаточно средств для этой ставки!', 'error');
+                    return;
+                }
+                roundStartBalance = balance;
+                balance -= betAmount;
+                updateUI();
+                
+                isGameActive = true;
+                document.getElementById('mineField').classList.remove('disabled');
+                toggleControls(true);
+                showToast('🔥 Игра началась! Открывай ячейки.', 'success');
+                return;
+            }
+
+            if (this.textContent.includes('Забрать')) {
+                const revealedCount = revealed.filter(r => r === true).length;
+                if (revealedCount === 0) return;
+
+                isProcessing = true;
+                balance += currentWin;
+
+                addGameToTicker({
+                    userDisplay: getFormattedUserDisplay(userData),
+                    game: 'Мины',
+                    bet: betAmount,
+                    startBal: roundStartBalance.toFixed(0),
+                    endBal: balance.toFixed(0),
+                    isWin: true
+                });
+
+                showToast(`🎉 Выиграли ${currentWin.toFixed(2)} ZM!`, 'success');
+                gameOver = true;
+                isGameActive = false;
+                isProcessing = false;
+                updateUI();
+                initMines();
+            }
+        });
+
+        renderTicker();
+        updateUI();
+        initMines();
+    </script>
+</body>
+</html>
