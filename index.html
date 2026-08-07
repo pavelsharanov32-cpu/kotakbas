@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Zemnin Global — Tower 3D</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #060609;
+            color: #fff;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            user-select: none;
+            position: relative;
+        }
+
+        body.screen-shake {
+            animation: nuclearShake 0.6s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes nuclearShake {
+            10%, 90% { transform: translate3d(-2px, 2px, 0) rotate(-0.5deg); }
+            20%, 80% { transform: translate3d(4px, -4px, 0) rotate(1deg); }
+            30%, 50%, 70% { transform: translate3d(-6px, 6px, 0) rotate(-1.5deg); }
+            40%, 60% { transform: translate3d(6px, -6px, 0) rotate(1.5deg); }
+        }
+
+        #dustCanvas, #explosionCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+        }
+        
+        #explosionCanvas {
+            z-index: 100;
+        }
+
+        .bg-glow-1, .bg-glow-2 {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(120px);
+            opacity: 0.35;
+            z-index: 0;
+            pointer-events: none;
+            animation: pulseGlow 10s ease-in-out infinite alternate;
+        }
+        .bg-glow-1 { width: 380px; height: 380px; background: radial-gradient(circle, #00ffcc 0%, transparent 70%); top: -80px; left: -80px; }
+        .bg-glow-2 { width: 420px; height: 420px; background: radial-gradient(circle, #7928ca 0%, transparent 70%); bottom: -80px; right: -80px; animation-delay: -5s; }
+
+        @keyframes pulseGlow {
+            0% { transform: scale(1) translate(0, 0); opacity: 0.25; }
+            50% { transform: scale(1.15) translate(20px, -20px); opacity: 0.45; }
+            100% { transform: scale(0.95) translate(-15px, 15px); opacity: 0.25; }
+        }
+
+        .header {
+            position: relative; z-index: 10; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center;
+            background: rgba(10, 10, 16, 0.75); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+        }
+        .header .logo { font-size: 15px; font-weight: 900; letter-spacing: 0.5px; background: linear-gradient(135deg, #00ffcc, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 0 0 20px rgba(0, 255, 204, 0.3); }
+        
+        .header .balance {
+            background: rgba(255, 255, 255, 0.04); padding: 6px 14px; border-radius: 30px; font-size: 13px; font-weight: 700; color: #00ffcc; border: 1px solid rgba(0, 255, 204, 0.3);
+            box-shadow: 0 0 15px rgba(0, 255, 204, 0.15), inset 0 0 10px rgba(0, 255, 204, 0.05); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: pointer;
+        }
+        .header .balance:active { transform: scale(0.95); }
+        .header .balance.celebrate { animation: pulseBalance 0.6s ease-out; }
+        @keyframes pulseBalance {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.15); color: #fff; border-color: #00ffcc; box-shadow: 0 0 25px #00ffcc; }
+            100% { transform: scale(1); }
+        }
+
+        .live-feed-wrapper { position: relative; z-index: 9; width: 100%; background: rgba(8, 8, 14, 0.6); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding: 8px 0; overflow: hidden; display: flex; align-items: center; }
+        .live-feed-track { display: flex; gap: 10px; width: max-content; animation: marquee 25s linear infinite; }
+        @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+        .feed-card { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 5px 10px; display: flex; align-items: center; gap: 8px; font-size: 11px; white-space: nowrap; }
+        .feed-card.win { border-color: rgba(0, 255, 204, 0.3); background: rgba(0, 255, 204, 0.04); }
+        .feed-card.loss { border-color: rgba(255, 51, 102, 0.2); background: rgba(255, 51, 102, 0.03); }
+        .feed-user { font-weight: 700; color: #fff; }
+        .feed-amount { font-weight: 800; }
+        .feed-card.win .feed-amount { color: #00ffcc; }
+        .feed-card.loss .feed-amount { color: #ff3366; }
+
+        .main-container { position: relative; z-index: 2; flex: 1; padding: 12px; display: flex; flex-direction: column; align-items: center; overflow-y: auto; }
+        .game-card { background: rgba(18, 18, 28, 0.5); backdrop-filter: blur(25px); border-radius: 22px; padding: 18px; border: 1px solid rgba(255, 255, 255, 0.09); width: 100%; max-width: 380px; display: flex; flex-direction: column; align-items: center; box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4); margin-bottom: 14px; }
+
+        .info-panel { width: 100%; background: rgba(0, 255, 204, 0.03); border: 1px solid rgba(0, 255, 204, 0.12); border-radius: 14px; padding: 10px 14px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; }
+        .info-panel .info-item { display: flex; flex-direction: column; align-items: center; flex: 1; }
+        .info-panel .info-item .value { font-size: 15px; font-weight: 800; color: #00ffcc; margin-top: 2px; text-shadow: 0 0 10px rgba(0, 255, 204, 0.3); }
+        .info-panel .info-item .label { font-size: 9px; text-transform: uppercase; color: #666; letter-spacing: 0.5px; }
+
+        .tower-viewport {
+            width: 100%;
+            height: 340px;
+            background: radial-gradient(circle at center, #11111e 0%, #07070c 100%);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            margin-bottom: 14px;
+            position: relative;
+            overflow-y: auto;
+            overflow-x: hidden;
+            perspective: 1000px;
+            padding: 20px 10px;
+        }
+
+        .tower-field-3d {
+            display: flex;
+            flex-direction: column-reverse;
+            gap: 16px;
+            width: 100%;
+            transform-style: preserve-3d;
+            position: relative;
+        }
+
+        .tower-row-3d {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            opacity: 0.25;
+            pointer-events: none;
+            transition: all 0.3s ease;
+            transform: rotateX(20deg);
+            transform-style: preserve-3d;
+            position: relative;
+        }
+        .tower-row-3d.active { opacity: 1; pointer-events: auto; z-index: 10; }
+        .tower-row-3d.past { opacity: 0.6; pointer-events: none; z-index: 5; }
+
+        .tile-3d {
+            position: relative;
+            aspect-ratio: 1.2;
+            background: linear-gradient(to bottom, #19192b, #10101a);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 5px 0 #09090f, 0 10px 15px rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .tower-row-3d.active .tile-3d:hover {
+            border-color: rgba(0, 255, 204, 0.5);
+            transform: translateY(-2px);
+            box-shadow: 0 7px 0 #09090f, 0 12px 20px rgba(0, 255, 204, 0.1);
+        }
+        .tile-3d.safe {
+            background: linear-gradient(to bottom, rgba(0, 255, 204, 0.15), rgba(0, 200, 150, 0.05));
+            border-color: #00ffcc;
+            color: #00ffcc;
+            box-shadow: 0 5px 0 #00997a, 0 10px 20px rgba(0, 255, 204, 0.2);
+        }
+        .tile-3d.bomb {
+            background: linear-gradient(to bottom, rgba(255, 51, 102, 0.25), rgba(200, 30, 70, 0.05));
+            border-color: #ff3366;
+            color: #ff3366;
+            box-shadow: 0 5px 0 #991f3d, 0 10px 20px rgba(255, 51, 102, 0.2);
+        }
+
+        .character-3d {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            background: #00ffcc;
+            border-radius: 6px;
+            z-index: 99;
+            pointer-events: none;
+            display: none;
+            box-shadow: 0 0 15px #00ffcc, inset 0 0 8px rgba(255,255,255,0.6);
+            border: 2px solid #fff;
+            transition: left 0.4s cubic-bezier(0.25, 1, 0.5, 1), top 0.4s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.3s ease;
+            transform-style: preserve-3d;
+            transform: translate(-50%, -50%);
+        }
+        .character-3d::before {
+            content: ''; position: absolute; top: 5px; left: 3px; width: 14px; height: 4px;
+            background: #060609; border-radius: 2px; box-shadow: 0 0 5px #060609;
+        }
+
+        .character-3d.jump-anim {
+            animation: cubicJump 0.4s ease-in-out;
+        }
+
+        @keyframes cubicJump {
+            0% { transform: translate(-50%, -50%) scale(1) translateY(0); }
+            50% { transform: translate(-50%, -50%) scale(1.3) translateY(-35px); box-shadow: 0 25px 30px rgba(0, 255, 204, 0.6); }
+            100% { transform: translate(-50%, -50%) scale(1) translateY(0); }
+        }
+
+        /* Класс, который вешается на робота во время желейного безумия */
+        .character-3d.jelly-mode {
+            position: fixed !important;
+            transition: none !important; /* Отключаем плавность CSS, чтобы работала чистая JS физика */
+        }
+
+        .controls-group { width: 100%; margin-bottom: 12px; }
+        .control-label { font-size: 11px; color: #777; text-transform: uppercase; margin-bottom: 6px; display: flex; justify-content: space-between; }
+        .control-label span { color: #00ffcc; font-weight: 700; }
+
+        .slider-container input[type="range"] { width: 100%; -webkit-appearance: none; height: 6px; border-radius: 4px; background: rgba(255,255,255,0.06); outline: none; }
+        .slider-container input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #00ffcc; cursor: pointer; box-shadow: 0 0 15px #00ffcc; }
+
+        .bet-preset-buttons { display: flex; gap: 6px; width: 100%; margin-top: 6px; }
+        .bet-preset-buttons button { flex: 1; padding: 7px 0; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; background: rgba(255, 255, 255, 0.025); color: #888; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s; -webkit-tap-highlight-color: transparent; }
+        .bet-preset-buttons button.active { border-color: #00ffcc; color: #fff; background: rgba(0, 255, 204, 0.12); box-shadow: 0 0 10px rgba(0, 255, 204, 0.1); }
+
+        .custom-bet-input { width: 100%; margin-top: 6px; padding: 10px 12px; background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; color: #00ffcc; font-size: 13px; font-weight: 700; text-align: center; outline: none; }
+        .btn-action, .btn-admin { width: 100%; padding: 14px; border: none; border-radius: 14px; background: linear-gradient(135deg, #00ffcc, #7928ca); color: #000; font-size: 14px; font-weight: 900; cursor: pointer; margin-top: 4px; box-shadow: 0 5px 20px rgba(0, 255, 204, 0.25); transition: all 0.2s; -webkit-tap-highlight-color: transparent; }
+        .btn-action:active { transform: scale(0.98); opacity: 0.9; }
+
+        .history-section { width: 100%; max-width: 380px; background: rgba(18, 18, 28, 0.45); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 18px; padding: 14px; margin-bottom: 20px; }
+        .history-title { font-size: 11px; font-weight: 800; color: #777; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.8px; }
+        .history-list { display: flex; flex-direction: column; gap: 6px; max-height: 120px; overflow-y: auto; }
+        .history-item { display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.025); padding: 8px 12px; border-radius: 10px; font-size: 12px; }
+        .history-item.win { border-left: 3px solid #00ffcc; background: rgba(0, 255, 204, 0.03); }
+        .history-item.loss { border-left: 3px solid #ff3366; background: rgba(255, 51, 102, 0.03); }
+
+        .btn-admin-menu { width: 100%; max-width: 380px; padding: 12px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(121, 40, 204, 0.3); border-radius: 14px; color: #a855f7; font-size: 12px; font-weight: 800; cursor: pointer; margin-bottom: 20px; text-align: center; -webkit-tap-highlight-color: transparent; }
+
+        .toast-container { position: fixed; top: 70px; left: 50%; transform: translateX(-50%); z-index: 9999; width: 90%; max-width: 360px; pointer-events: none; }
+        .toast { background: rgba(15, 15, 25, 0.92); backdrop-filter: blur(25px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 14px; padding: 12px; font-size: 13px; font-weight: 600; text-align: center; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); }
+        .toast.error { border-color: #ff3366; color: #ff3366; }
+        .toast.success { border-color: #00ffcc; color: #00ffcc; }
+    </style>
+</head>
+<body>
+
+    <canvas id="dustCanvas"></canvas>
+    <canvas id="explosionCanvas"></canvas>
+    <div class="bg-glow-1"></div>
+    <div class="bg-glow-2"></div>
+    <div class="toast-container" id="toastContainer"></div>
+
+    <div class="header">
+        <div class="logo">⚡ ZEMNIN TOWER 3D</div>
+        <div class="balance" id="headerBalanceBox" onclick="quickDeposit()">💰 <span id="headerBalance">50000.00</span></div>
+    </div>
+
+    <div class="live-feed-wrapper">
+        <div class="live-feed-track" id="liveFeedTrack"></div>
+    </div>
+
+    <div class="main-container">
+        
+        <div class="game-card">
+            <div class="info-panel">
+                <div class="info-item">
+                    <span class="label">Этаж</span>
+                    <span class="value" id="towerFloorDisplay">0/10</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Множитель</span>
+                    <span class="value" id="towerMultDisplay">1.00x</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Выигрыш</span>
+                    <span class="value" id="towerCurrentWin">0.00 ZM</span>
+                </div>
+            </div>
+
+            <div class="tower-viewport" id="towerViewport">
+                <div class="tower-field-3d" id="towerField">
+                    <div class="character-3d" id="char3D"></div>
+                </div>
+            </div>
+
+            <div class="controls-group">
+                <div class="control-label">
+                    <span>Мин на этаж</span>
+                    <span id="towerMinesVal">1 Мина</span>
+                </div>
+                <div class="slider-container">
+                    <input type="range" id="towerMinesSlider" min="1" max="3" step="1" value="1">
+                </div>
+            </div>
+
+            <div class="controls-group">
+                <div class="control-label">
+                    <span>Ставка</span>
+                    <span id="towerBetDisplay">50.00 ZM</span>
+                </div>
+                <div class="bet-preset-buttons" id="towerBetButtons">
+                    <button class="active" data-value="50">LOW</button>
+                    <button data-value="100">100</button>
+                    <button data-value="500">500</button>
+                    <button data-value="1000">1000</button>
+                    <button data-value="max">MAX</button>
+                </div>
+                <input type="number" id="towerBetInput" class="custom-bet-input" placeholder="Ставка..." value="50">
+            </div>
+
+            <button class="btn-action" id="startTowerBtn">Начать восхождение</button>
+            <button class="btn-action" id="cashoutTowerBtn" style="display: none; background: linear-gradient(135deg, #00ffcc, #00b3ff);">Забрать (<span id="towerCashoutDisplay">0</span> ZM)</button>
+        </div>
+
+        <div class="history-section">
+            <div class="history-title">📜 Моя история восхождений</div>
+            <div class="history-list" id="historyList"></div>
+        </div>
+
+        <button class="btn-admin-menu" id="openAdminBtn">👑 Панель Управления Балансом</button>
+
+        <div class="game-card" id="adminSection" style="display: none; margin-top: 10px;">
+            <h3 style="margin-bottom: 10px; color: #00ffcc; font-size: 14px;">Быстрая выдача</h3>
+            <input type="number" id="adminAmount" class="custom-bet-input" placeholder="Сумма" style="margin-bottom: 10px;">
+            <button class="btn-admin" id="adminGiveBtn">Установить баланс</button>
+        </div>
+
+    </div>
+
+    <script>
+        const dustCanvas = document.getElementById('dustCanvas'); const dustCtx = dustCanvas.getContext('2d');
+        const explosionCanvas = document.getElementById('explosionCanvas'); const expCtx = explosionCanvas.getContext('2d');
+        
+        let dustParticles = [];
+        let expParticles = [];
+
+        // Переменные для желейной физики робота
+        let jellyBot = {
+            active: false,
+            x: 0, y: 0,
+            vx: 0, vy: 0,
+            scaleX: 1, scaleY: 1,
+            targetScaleX: 1, targetScaleY: 1,
+            rotation: 0, vRotation: 0,
+            life: 0
+        };
+
+        function resizeCanvases() { 
+            dustCanvas.width = window.innerWidth; dustCanvas.height = window.innerHeight; 
+            explosionCanvas.width = window.innerWidth; explosionCanvas.height = window.innerHeight; 
+        }
+        window.addEventListener('resize', resizeCanvases); resizeCanvases();
+
+        class DustParticle {
+            constructor() { this.reset(); }
+            reset() { this.x = Math.random() * dustCanvas.width; this.y = Math.random() * dustCanvas.height; this.size = Math.random() * 2.2 + 0.8; this.speedX = (Math.random() - 0.5) * 0.2; this.speedY = (Math.random() - 0.5) * 0.2 - 0.05; this.opacity = Math.random() * 0.2 + 0.05; }
+            update() { this.x += this.speedX; this.y += this.speedY; if (this.x < -10 || this.x > dustCanvas.width + 10 || this.y < -10 || this.y > dustCanvas.height + 10) this.reset(); }
+            draw() { dustCtx.beginPath(); dustCtx.arc(this.x, this.y, this.size, 0, Math.PI * 2); dustCtx.fillStyle = `rgba(200, 220, 255, ${this.opacity})`; dustCtx.fill(); }
+        }
+        for (let i = 0; i < 35; i++) dustParticles.push(new DustParticle());
+
+        class NukeParticle {
+            constructor(x, y) {
+                this.x = x; this.y = y;
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 7 + 3;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed - Math.random() * 3;
+                this.size = Math.random() * 12 + 6;
+                this.maxLife = Math.random() * 30 + 30;
+                this.life = this.maxLife;
+                this.colors = ['#ffffff', '#fff200', '#ff5100', '#ff0000', '#3b0d0d', '#1a1a1a'];
+            }
+            update() {
+                this.x += this.vx; this.y += this.vy;
+                this.vx *= 0.94; this.vy *= 0.94;
+                this.vy -= 0.08; this.size += 0.4; this.life--;
+            }
+            draw() {
+                const progress = 1 - (this.life / this.maxLife);
+                const colorIdx = Math.floor(progress * this.colors.length);
+                const color = this.colors[Math.min(colorIdx, this.colors.length - 1)];
+                const alpha = this.life / this.maxLife;
+
+                expCtx.beginPath();
+                expCtx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                expCtx.fillStyle = color;
+                expCtx.globalAlpha = alpha;
+                expCtx.shadowBlur = progress < 0.4 ? 20 : 0;
+                expCtx.shadowColor = '#ff5100';
+                expCtx.fill();
+                expCtx.shadowBlur = 0;
+            }
+        }
+
+        function createNukeExplosion(screenX, screenY) {
+            for (let i = 0; i < 80; i++) {
+                expParticles.push(new NukeParticle(screenX, screenY));
+            }
+        }
+
+        function animate() { 
+            dustCtx.clearRect(0,0,dustCanvas.width,dustCanvas.height); 
+            dustParticles.forEach(p => { p.update(); p.draw(); }); 
+
+            expCtx.clearRect(0,0,explosionCanvas.width,explosionCanvas.height);
+            expCtx.globalCompositeOperation = 'screen';
+            for (let i = expParticles.length - 1; i >= 0; i--) {
+                expParticles[i].update();
+                expParticles[i].draw();
+                if (expParticles[i].life <= 0) expParticles.splice(i, 1);
+            }
+            expCtx.globalCompositeOperation = 'source-over';
+
+            // Обсчет физики желеобразного робота
+            if (jellyBot.active) {
+                updateJellyBotPhysics();
+            }
+
+            requestAnimationFrame(animate); 
+        }
+
+        function updateJellyBotPhysics() {
+            const char3D = document.getElementById('char3D');
+            
+            // Применяем скорости
+            jellyBot.x += jellyBot.vx;
+            jellyBot.y += jellyBot.vy;
+            
+            // Гравитация (слегка тянет вниз)
+            jellyBot.vy += 0.25;
+            
+            // Вращение в полете
+            jellyBot.rotation += jellyBot.vRotation;
+
+            // Плавный возврат формы желешки к нормальному состоянию (1x1)
+            jellyBot.scaleX += (jellyBot.targetScaleX - jellyBot.scaleX) * 0.15;
+            jellyBot.scaleY += (jellyBot.targetScaleY - jellyBot.scaleY) * 0.15;
+            
+            // Если деформация почти вернулась к норме, ставим цель = 1
+            if (Math.abs(jellyBot.scaleX - 1) < 0.05) jellyBot.targetScaleX = 1;
+            if (Math.abs(jellyBot.scaleY - 1) < 0.05) jellyBot.targetScaleY = 1;
+
+            const radius = 12; // Половина ширины робота
+            const bounceElasticity = 0.85; // Насколько сильно отскакивает
+
+            // Отскок от ЛЕВОЙ и ПРАВОЙ стен
+            if (jellyBot.x - radius < 0) {
+                jellyBot.x = radius;
+                jellyBot.vx = -jellyBot.vx * bounceElasticity;
+                jellyBot.vRotation = (Math.random() - 0.5) * 15;
+                // Сплющивание по горизонтали, растягивание по вертикали
+                jellyBot.scaleX = 0.5; jellyBot.scaleY = 1.5;
+            } else if (jellyBot.x + radius > window.innerWidth) {
+                jellyBot.x = window.innerWidth - radius;
+                jellyBot.vx = -jellyBot.vx * bounceElasticity;
+                jellyBot.vRotation = (Math.random() - 0.5) * 15;
+                jellyBot.scaleX = 0.5; jellyBot.scaleY = 1.5;
+            }
+
+            // Отскок от ВЕРХА и НИЗА экрана
+            if (jellyBot.y - radius < 0) {
+                jellyBot.y = radius;
+                jellyBot.vy = -jellyBot.vy * bounceElasticity;
+                jellyBot.vRotation = (Math.random() - 0.5) * 15;
+                // Сплющивание по вертикали, растягивание по горизонтали
+                jellyBot.scaleX = 1.6; jellyBot.scaleY = 0.4;
+            } else if (jellyBot.y + radius > window.innerHeight) {
+                jellyBot.y = window.innerHeight - radius;
+                jellyBot.vy = -jellyBot.vy * bounceElasticity;
+                jellyBot.vRotation = (Math.random() - 0.5) * 15;
+                jellyBot.scaleX = 1.6; jellyBot.scaleY = 0.4;
+            }
+
+            // Рендерим изменения на роботе
+            char3D.style.left = `${jellyBot.x}px`;
+            char3D.style.top = `${jellyBot.y}px`;
+            char3D.style.transform = `translate(-50%, -50%) scale(${jellyBot.scaleX}, ${jellyBot.scaleY}) rotate(${jellyBot.rotation}deg)`;
+
+            // Уменьшаем время жизни эффекта полета
+            jellyBot.life--;
+            if (jellyBot.life <= 0) {
+                jellyBot.active = false;
+                char3D.style.display = 'none';
+                char3D.classList.remove('jelly-mode');
+            }
+        }
+        
+        animate();
+
+        let tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+        let currentUserId = tgUser?.id || "local_user";
+        let currentUsername = tgUser?.username ? '@' + tgUser.username : (tgUser?.first_name || 'Игрок');
+
+        document.getElementById('openAdminBtn').onclick = () => { 
+            const sect = document.getElementById('adminSection'); 
+            sect.style.display = sect.style.display === 'none' ? 'flex' : 'none'; 
+        };
+
+        function getBalance() { 
+            let val = parseFloat(localStorage.getItem('zm_bal_' + currentUserId)); 
+            return isNaN(val) ? 50000.00 : val; 
+        }
+        function setBalance(val) { 
+            localStorage.setItem('zm_bal_' + currentUserId, val.toString()); 
+        }
+        let balance = getBalance();
+
+        function updateHeader() { 
+            document.getElementById('headerBalance').textContent = balance.toFixed(2); 
+        }
+        
+        function quickDeposit() {
+            if(isTowerPlaying) return;
+            balance += 10000;
+            setBalance(balance);
+            updateHeader();
+            triggerCelebrate();
+            showToast('💰 Баланс пополнен на +10,000 ZM!');
+            updateTowerUI();
+        }
+
+        function triggerCelebrate() { const el = document.getElementById('headerBalanceBox'); el.classList.add('celebrate'); setTimeout(() => el.classList.remove('celebrate'), 600); }
+        function showToast(msg, type = 'success') { const container = document.getElementById('toastContainer'); const toast = document.createElement('div'); toast.className = `toast ${type}`; toast.textContent = msg; container.appendChild(toast); setTimeout(() => toast.remove(), 2200); }
+
+        const liveFeedTrack = document.getElementById('liveFeedTrack');
+        function getGlobalLiveFeed() { return JSON.parse(localStorage.getItem('zm_t_feed3d') || '[]'); }
+        function renderLiveFeed() {
+            const feed = getGlobalLiveFeed(); liveFeedTrack.innerHTML = '';
+            if (feed.length === 0) {
+                const demo = [{ user: '@cyber_climb', isWin: true, profit: 850 }, { user: '@neon_king', isWin: false, profit: 200 }, { user: '@ai_bot', isWin: true, profit: 3200 }];
+                demo.forEach(item => feed.push(item));
+            }
+            [...feed, ...feed].forEach(item => {
+                const card = document.createElement('div'); card.className = `feed-card ${item.isWin ? 'win' : 'loss'}`;
+                card.innerHTML = `<span>🏰</span><span class="feed-user">${item.user}</span><span class="feed-amount">${item.isWin ? '+' : '-'}${item.profit.toFixed(0)} ZM</span>`;
+                liveFeedTrack.appendChild(card);
+            });
+        }
+        function pushLiveFeed(user, isWin, profit) { let feed = getGlobalLiveFeed(); feed.unshift({ user, isWin, profit }); if (feed.length > 8) feed.pop(); localStorage.setItem('zm_t_feed3d', JSON.stringify(feed)); renderLiveFeed(); }
+        renderLiveFeed();
+
+        function getHistory() { return JSON.parse(localStorage.getItem('zm_th_3d_' + currentUserId) || '[]'); }
+        function addHistoryRecord(result, amount) { let hist = getHistory(); hist.unshift({ result, amount, time: new Date().toLocaleTimeString().slice(0,5) }); if(hist.length > 6) hist.pop(); localStorage.setItem('zm_th_3d_' + currentUserId, JSON.stringify(hist)); renderHistory(); }
+        function renderHistory() {
+            const container = document.getElementById('historyList'); const hist = getHistory();
+            if (hist.length === 0) { container.innerHTML = '<div style="font-size: 11px; color: #666; text-align: center; padding: 10px;">История пуста</div>'; return; }
+            container.innerHTML = hist.map(item => `<div class="history-item ${item.result}"><span><b>Восхождение 3D</b> (${item.time})</span><span>${item.result === 'win' ? '+' : '-'}${item.amount.toFixed(2)} ZM</span></div>`).join('');
+        }
+
+        /* --- ИГРОВАЯ ЛОГИКА --- */
+        let towerBet = 50, towerMinesCount = 1, isTowerPlaying = false;
+        let currentFloor = 0, towerCurrentMult = 1.0;
+        let towerGridData = [];
+        const totalFloors = 10, tilesPerRow = 4;
+
+        const towerMultipliers = {
+            1: [1.30, 1.73, 2.31, 3.08, 4.11, 5.48, 7.31, 9.75, 13.00, 17.33], 
+            2: [1.94, 3.88, 7.76, 15.52, 31.04, 62.08, 124.16, 248.32, 496.64, 993.28], 
+            3: [3.88, 15.52, 62.08, 248.32, 993.28, 3973.12, 15892.48, 63569.92, 254279.68, 1017118.72]
+        };
+
+        const towerField = document.getElementById('towerField');
+        const char3D = document.getElementById('char3D');
+        const viewport = document.getElementById('towerViewport');
+
+        function updateTowerUI() {
+            document.getElementById('towerBetDisplay').textContent = towerBet.toFixed(2) + ' ZM';
+            document.getElementById('towerFloorDisplay').textContent = `${currentFloor}/${totalFloors}`;
+            document.getElementById('towerMultDisplay').textContent = towerCurrentMult.toFixed(2) + 'x';
+            document.getElementById('towerCurrentWin').textContent = (towerBet * towerCurrentMult).toFixed(2) + ' ZM';
+            document.getElementById('towerCashoutDisplay').textContent = (towerBet * towerCurrentMult).toFixed(2);
+        }
+
+        function initTowerGrid() {
+            // Возвращаем робота внутрь игрового поля башни перед новой игрой
+            if (char3D.parentNode !== towerField) {
+                towerField.appendChild(char3D);
+            }
+            char3D.style.display = 'none';
+            char3D.className = 'character-3d';
+            char3D.style.opacity = '1';
+            char3D.style.transform = 'translate(-50%, -50%)';
+
+            const oldRows = towerField.querySelectorAll('.tower-row-3d');
+            oldRows.forEach(r => r.remove());
+            
+            towerGridData = [];
+            for (let f = 0; f < totalFloors; f++) {
+                let rowData = Array(tilesPerRow).fill('safe'); let pm = 0;
+                while (pm < towerMinesCount) { let r = Math.floor(Math.random() * tilesPerRow); if (rowData[r] !== 'bomb') { rowData[r] = 'bomb'; pm++; } }
+                towerGridData.push(rowData);
+
+                const rowEl = document.createElement('div');
+                rowEl.className = 'tower-row-3d' + (f === 0 && isTowerPlaying ? ' active' : '');
+                rowEl.id = `t-row-${f}`;
+
+                for (let t = 0; t < tilesPerRow; t++) {
+                    const tileEl = document.createElement('div');
+                    tileEl.className = 'tile-3d'; tileEl.id = `t-tile-${f}-${t}`;
+                    tileEl.textContent = '❓'; tileEl.onclick = () => handleTowerTileClick(f, t);
+                    rowEl.appendChild(tileEl);
+                }
+                towerField.appendChild(rowEl);
+            }
+        }
+
+        document.getElementById('towerMinesSlider').oninput = (e) => {
+            if (isTowerPlaying) return;
+            towerMinesCount = parseInt(e.target.value);
+            document.getElementById('towerMinesVal').textContent = towerMinesCount + (towerMinesCount === 1 ? ' Мина' : ' Мины');
+        };
+
+        function moveCharacterToTile(floor, tileIdx, callback) {
+            if (jellyBot.active) return; // Игнорируем клики, если робот еще летает
+
+            const tileEl = document.getElementById(`t-tile-${floor}-${tileIdx}`);
+            const rowEl = document.getElementById(`t-row-${floor}`);
+            
+            if (floor === 0 && char3D.style.display === 'none') {
+                char3D.style.left = (tileEl.offsetLeft + tileEl.offsetWidth / 2) + "px";
+                char3D.style.top = (rowEl.offsetTop + tileEl.offsetHeight * 1.5) + "px";
+                char3D.style.display = 'block';
+            }
+
+            const targetX = tileEl.offsetLeft + (tileEl.offsetWidth / 2);
+            const targetY = rowEl.offsetTop + (tileEl.offsetHeight / 2);
+
+            char3D.classList.remove('jump-anim');
+            void char3D.offsetWidth; 
+            char3D.classList.add('jump-anim');
+
+            char3D.style.left = targetX + "px";
+            char3D.style.top = targetY + "px";
+
+            setTimeout(() => {
+                const targetScrollTop = rowEl.offsetTop - (viewport.offsetHeight / 2) + tileEl.offsetHeight;
+                viewport.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+            }, 50);
+
+            setTimeout(() => {
+                char3D.classList.remove('jump-anim');
+                if(callback) callback();
+            }, 400);
+        }
+
+        function handleTowerTileClick(floor, tileIdx) {
+            if (!isTowerPlaying || floor !== currentFloor || jellyBot.active) return;
+            const tileEl = document.getElementById(`t-tile-${floor}-${tileIdx}`);
+            const currentRowEl = document.getElementById(`t-row-${floor}`);
+
+            currentRowEl.classList.remove('active'); currentRowEl.classList.add('past');
+
+            moveCharacterToTile(floor, tileIdx, () => {
+                if (towerGridData[floor][tileIdx] === 'bomb') {
+                    tileEl.classList.add('bomb'); tileEl.textContent = '💥';
+                    
+                    document.body.classList.add('screen-shake');
+
+                    // Вычисляем глобальные экранные координаты робота для инициализации полета желешки
+                    const rect = char3D.getBoundingClientRect();
+                    const startX = rect.left + rect.width / 2;
+                    const startY = rect.top + rect.height / 2;
+
+                    // Переносим робота в body, чтобы он мог летать по всему экрану поверх интерфейса
+                    document.body.appendChild(char3D);
+                    char3D.classList.add('jelly-mode');
+
+                    // Задаем параметры желейной физики взрыва
+                    jellyBot.x = startX;
+                    jellyBot.y = startY;
+                    // Случайный мощный вектор разлета
+                    jellyBot.vx = (Math.random() - 0.5) * 35; 
+                    jellyBot.vy = -Math.random() * 25 - 15; 
+                    jellyBot.rotation = 0;
+                    jellyBot.vRotation = (Math.random() - 0.5) * 20; // Скорость вращения
+                    jellyBot.life = 180; // Летает около 3 секунд (180 кадров при 60fps)
+                    jellyBot.active = true;
+
+                    // Создаем спецэффект частиц
+                    createNukeExplosion(startX, startY);
+
+                    setTimeout(() => {
+                        document.body.classList.remove('screen-shake');
+                    }, 600);
+
+                    setTimeout(() => endTowerGame(false), 700);
+                } else {
+                    tileEl.classList.add('safe'); tileEl.textContent = '💎';
+                    towerCurrentMult = towerMultipliers[towerMinesCount][floor];
+                    currentFloor++;
+
+                    if (currentFloor === totalFloors) {
+                        endTowerGame(true);
+                    } else {
+                        document.getElementById(`t-row-${currentFloor}`).classList.add('active');
+                        updateTowerUI();
+                    }
+                }
+            });
+        }
+
+        document.getElementById('startTowerBtn').onclick = () => {
+            if (balance < towerBet || towerBet < 50) return showToast('Мин. ставка 50 ZM', 'error');
+            balance -= towerBet; setBalance(balance); updateHeader();
+            
+            isTowerPlaying = true; currentFloor = 0; towerCurrentMult = 1.0;
+            jellyBot.active = false; // Сбрасываем старый полет, если он шел
+
+            initTowerGrid(); updateTowerUI();
+            
+            setTimeout(() => {
+                viewport.scrollTop = viewport.scrollHeight;
+            }, 50);
+
+            document.getElementById('startTowerBtn').style.display = 'none';
+            document.getElementById('cashoutTowerBtn').style.display = 'block';
+            document.getElementById('towerMinesSlider').disabled = true;
+        };
+
+        document.getElementById('cashoutTowerBtn').onclick = () => { if (isTowerPlaying && currentFloor > 0) endTowerGame(true); };
+
+        function endTowerGame(isWin) {
+            isTowerPlaying = false;
+            document.getElementById('startTowerBtn').style.display = 'block';
+            document.getElementById('cashoutTowerBtn').style.display = 'none';
+            document.getElementById('towerMinesSlider').disabled = false;
+
+            for (let f = 0; f < totalFloors; f++) {
+                document.getElementById(`t-row-${f}`).classList.remove('active');
+                for (let t = 0; t < tilesPerRow; t++) {
+                    const tileEl = document.getElementById(`t-tile-${f}-${t}`);
+                    if (towerGridData[f][t] === 'bomb') { tileEl.classList.add('bomb'); tileEl.textContent = '💣'; }
+                    else { tileEl.classList.add('safe'); tileEl.textContent = '💎'; }
+                }
+            }
+
+            if (isWin) {
+                const win = towerBet * towerCurrentMult;
+                balance += win; setBalance(balance); triggerCelebrate();
+                showToast(`🎉 Выиграли +${win.toFixed(2)} ZM`);
+                addHistoryRecord('win', win); pushLiveFeed(currentUsername, true, win - towerBet);
+            } else {
+                showToast(`☢️ ТОТАЛЬНАЙ АННИГИЛЯЦИЯ!`, 'error');
+                addHistoryRecord('loss', towerBet); pushLiveFeed(currentUsername, false, towerBet);
+            }
+            updateHeader(); updateTowerUI();
+        }
+
+        function setupPresets(contId, inpId, cb) {
+            const cont = document.getElementById(contId), inp = document.getElementById(inpId);
+            cont.querySelectorAll('button').forEach(btn => {
+                btn.onclick = function() {
+                    if (isTowerPlaying) return;
+                    cont.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    const val = this.dataset.value === 'max' ? balance : parseFloat(this.dataset.value);
+                    inp.value = val; cb(val);
+                };
+            });
+            inp.oninput = (e) => { let val = parseFloat(e.target.value); cb(isNaN(val) || val < 0 ? 0 : val); };
+        }
+        setupPresets('towerBetButtons', 'towerBetInput', (val) => { towerBet = val; updateTowerUI(); });
+
+        document.getElementById('adminGiveBtn').onclick = () => {
+            const amt = parseFloat(document.getElementById('adminAmount').value);
+            if(isNaN(amt)) return showToast('Введите сумму', 'error');
+            balance = amt; setBalance(balance); updateHeader(); updateTowerUI();
+            showToast(`Баланс обновлен до ${amt} ZM`);
+        };
+
+        initTowerGrid(); renderHistory(); updateHeader(); updateTowerUI();
+    </script>
+</body>
+</html>
